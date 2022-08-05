@@ -1,7 +1,8 @@
 #include<iostream>
 #include"..\..\Matrix\Matrix\Matrix.cpp"
 
-#define NN_TYPE double
+#define NN_TYPE MATRIX_TYPE
+#define NN_LABLE vector<vector<NN_TYPE>>
 
 using namespace std;
 
@@ -11,21 +12,25 @@ private:
 	vector<Matrix> outNode;
 	vector<Matrix> weight;
 	vector<int> network;
-	vector<vector<NN_TYPE>> xLable;
-	vector<vector<NN_TYPE>> yLable;
+	NN_LABLE  xLable;
+	NN_LABLE  yLable;
 	int index;
 	vector<function<MATRIX_TYPE(MATRIX_TYPE)>> actFunc;
+	vector<function<MATRIX_TYPE(MATRIX_TYPE)>> actDFunc;
 	int epoch;	// default = 100
 	double eta;	// default = 0.01
 	
 private:
 	NeuralNetwork& forward();
 	NeuralNetwork& backPropagation();
+	int getIndex();
+	NeuralNetwork& setInputLayer(vector<NN_TYPE> vec);
 public:
-	NN_TYPE sumOfError(function<NN_TYPE(Matrix&, int)> lossFunc);
+	NN_TYPE sumOfError(function<NN_TYPE(NN_TYPE, NN_TYPE)> lossFunc);
+	NN_TYPE _directSOE(function<NN_TYPE(Matrix&, int)> lf);
 public:
-	NeuralNetwork(const vector<int> net, const vector<function<MATRIX_TYPE(MATRIX_TYPE)>> func);
-	NeuralNetwork& input(const vector<MATRIX_TYPE> data);
+	NeuralNetwork(const vector<int> net, const vector<function<MATRIX_TYPE(MATRIX_TYPE)>> func, const vector<function<MATRIX_TYPE(MATRIX_TYPE)>> dFunc);
+	NeuralNetwork& input(const NN_LABLE  xLableData, const NN_LABLE yLableData);
 	NeuralNetwork& run();
 	vector<int> getNetwork() const;
 	void showNetNode(int n);
@@ -46,19 +51,34 @@ NeuralNetwork& NeuralNetwork::forward() {
 	return *this;
 }
 NeuralNetwork& NeuralNetwork::backPropagation() {
-
+	return *this;
 }
-NN_TYPE NeuralNetwork::sumOfError(function<NN_TYPE(Matrix&, int)> lossFunc) {
+int NeuralNetwork::getIndex() {
+	index++;
+	if (index >= xLable.size())
+		index = 0;
+	return index;
+}
+NeuralNetwork& NeuralNetwork::setInputLayer(vector<NN_TYPE> vec) {
+	outNode[0] = vec;
+	return *this;
+}
+NN_TYPE NeuralNetwork::sumOfError(function<NN_TYPE(NN_TYPE, NN_TYPE)> lossFunc) {
+	static Matrix tempMat;
+	static Matrix yLableMat;
+	return tempMat(outNode.back()).applyFunc(lossFunc, yLableMat(yLable[index])).getAllSum();
+}
+NN_TYPE NeuralNetwork::_directSOE(function<NN_TYPE(Matrix&, int)> lossFunc) {
 	return lossFunc(outNode.back(), index);
 }
-NeuralNetwork::NeuralNetwork(const vector<int> net, const vector<function<MATRIX_TYPE(MATRIX_TYPE)>> func) : epoch(100), eta(0.01), index(0) {
+NeuralNetwork::NeuralNetwork(const vector<int> net, const vector<function<MATRIX_TYPE(MATRIX_TYPE)>> func, const vector<function<MATRIX_TYPE(MATRIX_TYPE)>> dFunc)
+	: epoch(100), eta(0.01), index(-1) {
 	network.assign(net.begin(), net.end());
 	netNode.resize(net.size() - 1);
 	outNode.resize(net.size());
 	weight.resize(net.size() - 1);
-	for (auto f : func) {
-		actFunc.push_back(f);
-	}
+	actFunc.assign(func.begin(), func.end());
+	actDFunc.assign(dFunc.begin(), dFunc.end());
 	for (int i = 0; i < netNode.size(); i++) {
 		netNode[i].resize(1, network[i+1]);
 	}
@@ -69,19 +89,15 @@ NeuralNetwork::NeuralNetwork(const vector<int> net, const vector<function<MATRIX
 		weight[i].resize(network[i], network[i + 1]).randomReal(-1, 1);
 	}
 }
-NeuralNetwork& NeuralNetwork::input(const vector<MATRIX_TYPE> data) {
-	if (data.size() != network[0]) {
-		cout << "The size of the input layer does not match." << endl;
-		return *this;
-	}
-	for (int i = 0; i < network[0]; i++) {
-		outNode[0](i, 0) = data[i];
-	}
+NeuralNetwork& NeuralNetwork::input(const NN_LABLE  xLableData, const NN_LABLE yLableData) {
+	this->xLable.assign(xLableData.begin(), xLableData.end());
+	this->yLable.assign(yLableData.begin(), yLableData.end());
 	return *this;
 }
 NeuralNetwork& NeuralNetwork::run() {
-	epoch = 1;
+	epoch = 4;
 	for (int i = 0; i < epoch; i++) {
+		setInputLayer(xLable[getIndex()]);
 		forward();
 	}
 	return *this;
@@ -123,10 +139,15 @@ int main()
 		return 0.5*(x / (1 + ABS(x))) + 0.5;
 	};
 
-	vector<vector<NN_TYPE>> xLable = { { 0,0 },{ 0,1 },{ 1,0 },{ 1,1 } };
-	vector<vector<NN_TYPE>> yLable = { { 0 },{ 1 },{ 1 },{ 1 } };
+	NN_LABLE  xLable = { { 0,0 },{ 0,1 },{ 1,0 },{ 1,1 } };
+	//NN_LABLE  yLable = { { 0 },{ 1 },{ 1 },{ 1 } };
+	NN_LABLE yLable(4);
+	yLable[0].resize(1000);
+	yLable[1].resize(1000);
+	yLable[2].resize(1000);
+	yLable[3].resize(1000);
 
-	auto ss = [&yLable](Matrix &mat, int index) {
+	auto d_sse = [&yLable](Matrix &mat, int index) {
 		NN_TYPE sum = 0;
 		for (int i = 0; i < yLable[index].size(); i++) {
 			sum += 0.5*(mat(i, 0) - yLable[index][i])*(mat(i, 0) - yLable[index][i]);
@@ -134,9 +155,32 @@ int main()
 		return sum;
 	};
 
-	NeuralNetwork nn({ 2,3,3,1 }, { sigmoid, sigmoid, sigmoid });
-	nn.input({ 1,1 });
+	auto sse = [](MATRIX_TYPE n, MATRIX_TYPE n2) {
+		return 0.5*(n - n2)*(n - n2);
+	};
+
+	NeuralNetwork nn({ 2,3,3,1000 }, { sigmoid, sigmoid, sigmoid }, { sigmoid, sigmoid, sigmoid });
+	nn.input(xLable, yLable);
 	nn.run();
-	cout << nn << endl << endl;
-	cout << nn.sumOfError(ss) << endl;
+	//cout << nn << endl << endl;
+	
+	int s = clock();
+	int r = 1000;
+	double sss = 0.0;
+
+
+	sss = 0.0;
+	s = clock();
+	for (int i = 0; i < r; i++)
+		sss += nn._directSOE(d_sse);
+	cout << "T : " << clock() - s << endl;
+	cout << sss << endl;
+
+
+	sss = 0.0;
+	s = clock();
+	for (int i = 0; i < r; i++)
+		sss += nn.sumOfError(sse);
+	cout << "T : " << clock() - s << endl;
+	cout << sss << endl;
 }

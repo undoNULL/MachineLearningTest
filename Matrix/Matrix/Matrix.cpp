@@ -22,22 +22,28 @@ private:
 	bool transpose;
 private:
 	void copy(Matrix const &ref);
+	void copy(vector<MATRIX_TYPE> const &vec);
 	MATRIX_TYPE partDot(Matrix &ref1, Matrix &ref2, int x, int y);
 public:
 	Matrix();
 	Matrix(const int row, const int col);
 	Matrix(Matrix const &ref);
+	Matrix(vector<MATRIX_TYPE> const &vec);
 	~Matrix();
 	Matrix& operator=(Matrix const &ref);
+	Matrix& operator=(vector<MATRIX_TYPE> const &vec);
 	MATRIX_TYPE& operator()(const int x, const int y);
 	MATRIX_TYPE operator()(const int x, const int y) const;
+	Matrix& operator()(Matrix const &ref);
+	Matrix& operator()(vector<MATRIX_TYPE> const &vec);
 	int getRow() const;
 	int getCol() const;
 	bool getTranspose() const;
+	MATRIX_TYPE getAllSum();
 	Matrix& resize(const int row, const int col);
 	Matrix& assign(const MATRIX_TYPE n);
 	Matrix& applyFunc(function<MATRIX_TYPE(MATRIX_TYPE)> func);
-	Matrix& applyFunc(function<MATRIX_TYPE(MATRIX_TYPE, MATRIX_TYPE)> func, Matrix &ref);
+	Matrix& applyFunc(function<MATRIX_TYPE(MATRIX_TYPE, MATRIX_TYPE)> func, Matrix const &ref);
 	Matrix& dot(Matrix &ref1, Matrix &ref2);
 	Matrix& add(Matrix &ref);
 	Matrix& min(Matrix &ref);
@@ -60,6 +66,15 @@ void Matrix::copy(Matrix const &ref) {
 		}
 	}
 }
+void Matrix::copy(vector<MATRIX_TYPE> const &vec) {
+	int row = 1;
+	int col = vec.size();
+	transpose = false;
+	resize(row, col);
+	for (int i = 0; i < col; i++) {
+		(*this)(i, 0) = vec[i];
+	}
+}
 MATRIX_TYPE Matrix::partDot(Matrix &ref1, Matrix &ref2, int x, int y) {
 	MATRIX_TYPE sum = 0;
 	for (int i = 0; i < ref1.getCol(); i++) {
@@ -76,10 +91,17 @@ Matrix::Matrix(const int row, const int col) : transpose(false) {
 Matrix::Matrix(Matrix const &ref) {
 	copy(ref);
 }
+Matrix::Matrix(vector<MATRIX_TYPE> const &vec) {
+	copy(vec);
+}
 Matrix::~Matrix() {
 }
 Matrix& Matrix::operator=(Matrix const &ref) {
 	copy(ref);
+	return *this;
+}
+Matrix& Matrix::operator=(vector<MATRIX_TYPE> const &vec) {
+	copy(vec);
 	return *this;
 }
 MATRIX_TYPE& Matrix::operator()(const int x, const int y) {
@@ -91,6 +113,14 @@ MATRIX_TYPE Matrix::operator()(const int x, const int y) const {
 	const MATRIX_TYPE n = this->matrix[(tp) ? x : y][(tp) ? y : x];
 	return n;
 }
+Matrix& Matrix::operator()(Matrix const &ref) {
+	copy(ref);
+	return *this;
+}
+Matrix& Matrix::operator()(vector<MATRIX_TYPE> const &vec) {
+	copy(vec);
+	return *this;
+}
 int Matrix::getRow() const {
 	return (this->getTranspose()) ? this->col : this->row;
 }
@@ -99,6 +129,15 @@ int Matrix::getCol() const {
 }
 bool Matrix::getTranspose() const {
 	return this->transpose;
+}
+MATRIX_TYPE Matrix::getAllSum() {
+	MATRIX_TYPE sum = 0;
+	for (auto &row : matrix) {
+		for (MATRIX_TYPE &n : row) {
+			sum += n;
+		}
+	}
+	return sum;
 }
 Matrix& Matrix::resize(const int row, const int col) {
 	if (this->getRow() != row)
@@ -121,7 +160,7 @@ Matrix& Matrix::applyFunc(function<MATRIX_TYPE(MATRIX_TYPE)> func) {
 	}
 	return *this;
 }
-Matrix& Matrix::applyFunc(function<MATRIX_TYPE(MATRIX_TYPE, MATRIX_TYPE)> func, Matrix &ref) {
+Matrix& Matrix::applyFunc(function<MATRIX_TYPE(MATRIX_TYPE, MATRIX_TYPE)> func, Matrix const &ref) {
 	try {
 		if (this->getRow() != ref.getRow() || this->getCol() != ref.getCol()) {
 			throw - 1;
